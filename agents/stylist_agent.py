@@ -117,6 +117,22 @@ Note that you should primary focus on the detailed description and style guideli
 
 ## OUTPUT
 Output ONLY the final polished Detailed Description. Do not include any conversational text or explanations.
+
+## STYLE
+전체 디자인 설정:
+  톤: "아이 친화적, 부드러움, 수공예, 입체적, 팬시."
+  시각적 아이덴티티:
+    배경색: "#E0FFFF (라이트 시안)"
+    텍스트 색상: "#5F9EA0 (캐딧 블루)"
+    강조 색상: "#FFB6C1 (라이트 핑크), #FFFACD (레몬 시폰)"
+    이미지 스타일:
+      특징: "겹겹이 쌓인 색종이 오려내기 같은 표현."
+      효과: "그림자가 있는 종이 겹침(드롭 섀도우)."
+      형태: "자유형으로 자른 듯한 약간의 왜곡."
+      텍스처: "색종이 텍스처."
+  타이포그래피:
+    제목: "라운드 손글씨 폰트."
+    스타일: "종이에서 오려낸 듯한 글자."
 """
 
 PLOT_STYLIST_AGENT_SYSTEM_PROMPT = """

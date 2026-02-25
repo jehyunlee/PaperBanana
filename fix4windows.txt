@@ -1,0 +1,92 @@
+PaperBanana - Windows 호환성 수정 기록
+========================================
+날짜: 2026-02-25
+
+1. utils/config.py - time.tzset() Windows 미지원 오류 수정
+------------------------------------------------------------------------
+문제: time.tzset()는 Unix 전용 함수로 Windows에서 AttributeError 발생
+수정:
+  - import 추가: from datetime import datetime / from zoneinfo import ZoneInfo
+  - os.environ["TZ"] 설정 및 time.tzset() 호출 제거
+  - time.strftime("%m%d_%H%M") → datetime.now(ZoneInfo("America/Los_Angeles")).strftime("%m%d_%H%M") 로 대체
+
+변경 전 (line 44-45):
+    os.environ["TZ"] = "America/Los_Angeles"
+    time.tzset()
+
+변경 후:
+    (해당 2줄 삭제, timestamp 생성부에서 datetime+ZoneInfo 사용)
+
+변경 전 (line 59-60):
+    self.timestamp = (
+        time.strftime("%m%d_%H%M") if self.timestamp is None else self.timestamp
+    )
+
+변경 후:
+    self.timestamp = (
+        datetime.now(ZoneInfo("America/Los_Angeles")).strftime("%m%d_%H%M")
+        if self.timestamp is None else self.timestamp
+    )
+
+
+2. agents/planner_agent.py - 데이터셋 없이 실행 시 FileNotFoundError 수정
+------------------------------------------------------------------------
+문제: Retrieval Setting을 "none"으로 설정해도 planner_agent가 ref.json을 열려고 시도
+원인: retrieved_examples가 빈 리스트([])일 때 not examples가 True가 되어 ref.json 로드 분기 진입
+수정: retrieved_ids도 비어있으면 ref.json을 열지 않도록 조건 추가
+
+변경 전 (line 68-73):
+    examples = data.get("retrieved_examples", [])
+    if not examples:
+        retrieved_ids = data.get("top10_references", [])
+        with open(...ref.json...) as f:
+            candidate_pool = json.load(f)
+        ...
+
+변경 후:
+    examples = data.get("retrieved_examples", [])
+    if not examples:
+        retrieved_ids = data.get("top10_references", [])
+        if retrieved_ids:
+            with open(...ref.json...) as f:
+                candidate_pool = json.load(f)
+            ...
+
+
+3. demo.py - Processing Log 출력창 추가
+------------------------------------------------------------------------
+문제: Streamlit 데모에서 생성 중 진행 상황을 알 수 없음 (spinner만 표시)
+수정:
+  - import 추가: io, threading (line 31-32)
+  - LogCapture 클래스 추가 (line 82-97): stdout/stderr를 버퍼에 캡처하면서 원래 stdout에도 출력
+  - Generate Candidates 버튼 처리부 수정 (line 574~):
+    - st.expander("Processing Log")로 스크롤 가능한 로그 영역 추가
+    - 처리 중 sys.stdout/sys.stderr를 LogCapture로 교체
+    - finally 블록에서 원래 stdout/stderr 복원 후 캡처된 로그를 st.code()로 표시
+  - 에이전트들의 기존 print() 출력(Retriever, Planner, Visualizer, Critic 등)이
+    자동으로 로그 영역에 표시됨
+
+
+4. utils/generation_utils.py - asyncio 이벤트 루프 충돌 수정
+------------------------------------------------------------------------
+문제: Streamlit에서 asyncio.run()이 새 이벤트 루프를 생성하는데,
+  모듈 import 시점에 생성된 gemini_client의 내부 async 핸들러(client.aio)가
+  이전 루프에 바인딩되어 "Future attached to a different loop" 오류 발생
+수정: call_gemini_with_retry_async() 함수 내에서 매 호출마다
+  genai.Client를 새로 생성하도록 변경
+
+변경 전 (line 112-116):
+    current_contents = contents
+    for attempt in range(max_attempts):
+        try:
+            # Use global client
+            client = gemini_client
+
+변경 후:
+    # Create a fresh client per call to avoid event loop conflicts with asyncio.run()
+    _api_key = get_config_val("api_keys", "google_api_key", "GOOGLE_API_KEY", "")
+    client = genai.Client(api_key=_api_key)
+
+    current_contents = contents
+    for attempt in range(max_attempts):
+        try:
